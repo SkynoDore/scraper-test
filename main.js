@@ -1,18 +1,23 @@
 const puppeteer = require('puppeteer');
-
 const fs = require('fs');
 const {
   parse
 } = require('json2csv');
+
+
+const startTime = Date.now();
+const resultados = [];
+const nombresRegistrados = new Set();
+let idCounter = 1;
+let listaLugares = [];
+let ultimoIndiceProcesado = 0;
+
 
 // Coordenadas del centro de Madrid
 const centroMadrid = {
   lat: 40.4168,
   lon: -3.7038
 };
-const startTime = Date.now();
-const resultados = [];
-
 // Función para calcular distancia Haversine
 function calcularDistancia(lat1, lon1, lat2, lon2) {
   const R = 6371; // Radio de la Tierra en km
@@ -26,6 +31,7 @@ function calcularDistancia(lat1, lon1, lat2, lon2) {
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   return (R * c).toFixed(2);
 }
+
 
 (async () => {
   const browser = await puppeteer.launch({
@@ -69,7 +75,7 @@ function calcularDistancia(lat1, lon1, lat2, lon2) {
 
     try {
       await page.waitForSelector('#widget-zoom-in', {
-        timeout: 5000
+        timeout: 7000
       });
       for (let i = 0; i < 7; i++) {
         await page.click('#widget-zoom-in');
@@ -81,14 +87,6 @@ function calcularDistancia(lat1, lon1, lat2, lon2) {
     }
 
     const candidatos = await page.$$('div.m6QErb.XiKgde');
-    console.log(`Detectados ${candidatos.length} elementos.`);
-
-    let ultimoIndiceProcesado = 0;
-
-    const nombresRegistrados = new Set();
-    let listaLugares = [];
-    let idCounter = 1;
-
     while (true) {
       const nuevosCandidatos = await page.$$('div.m6QErb.XiKgde');
       let nuevosEncontrados = 0;
@@ -97,6 +95,14 @@ function calcularDistancia(lat1, lon1, lat2, lon2) {
         const nombre = await candidato.evaluate(el =>
           el.querySelector('div.fontHeadlineSmall.rZF81c')?.textContent?.trim()
         );
+
+        const className = await candidato.evaluate(el => el.className);
+
+        // Saltar si contiene clases sospechosas
+        if (className.includes('vRIAEd') || className.includes('tLjsW') || className.includes('Etkrnc')) {
+          console.log('Descartado: clase sospechosa', className);
+          continue;
+        }
 
         if (!nombre) {
           console.log('Descartado: sin nombre');
@@ -108,25 +114,55 @@ function calcularDistancia(lat1, lon1, lat2, lon2) {
           continue;
         }
 
-        nombresRegistrados.add(nombre);
-
         listaLugares.push({
           id: idCounter++,
-          nombre,
-          candidato
+          nombre
         });
         nuevosEncontrados++;
       }
 
+      console.log(`Detectados ${nuevosEncontrados} elementos.`);
+
 
       for (; ultimoIndiceProcesado < listaLugares.length; ultimoIndiceProcesado++) {
         const {
-          nombre,
-          candidato
+          nombre
         } = listaLugares[ultimoIndiceProcesado];
+
         try {
-          await candidato.click();
+          const candidatosActuales = await page.$$('div.m6QErb.XiKgde');
+          let candidato = null;
+
+          for (const cand of candidatosActuales) {
+            const nombreCand = await cand.evaluate(el =>
+              el.querySelector('div.fontHeadlineSmall.rZF81c')?.textContent?.trim()
+            );
+            if (nombreCand === nombre) {
+              candidato = cand;
+              break;
+            } else {
+
+              await cand.dispose(); // liberar los que no se usan
+
+            }
+          }
+
+          if (!candidato) {
+            console.log(`No se encontró candidato para "${nombre}"`);
+            continue;
+          }
+
+          const clickable = await candidato.$('div.fontHeadlineSmall.rZF81c');
+
+          if (clickable) {
+            console.log(`Clicando en el elemento correcto para "${nombre}"`);
+            await clickable.click();
+          } else {
+            console.warn(`No se encontró el clicable para "${nombre}"`);
+          }
           await new Promise(resolve => setTimeout(resolve, 1500));
+
+
 
           // Extraer coordenadas de la URL
           const currentUrl = page.url();
@@ -171,11 +207,14 @@ function calcularDistancia(lat1, lon1, lat2, lon2) {
             ...data,
             distanciaKm
           });
+
+          nombresRegistrados.add(data.nombre);
+
           console.log({
             ...data,
             distanciaKm
           });
-
+          await candidato.dispose(); // 🔥 liberar el handle
         } catch (err) {
           console.warn(`Error procesando ${nombre}:`, err.message);
         }

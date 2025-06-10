@@ -3,48 +3,95 @@ const fs = require('fs');
 const {
   parse
 } = require('json2csv');
+const {
+  app,
+  BrowserWindow,
+  ipcMain
+} = require('electron');
+const path = require('path');
 
+// Función para crear la ventana
+function createWindow() {
+  const win = new BrowserWindow({
+    width: 800,
+    height: 600,
+    webPreferences: {
+      contextIsolation: true, 
+      nodeIntegration: false, 
+      preload: path.join(__dirname, 'preload.js') 
+    }
 
-const startTime = Date.now();
-const resultados = [];
-const nombresRegistrados = new Set();
-let idCounter = 1;
-let listaLugares = [];
-let ultimoIndiceProcesado = 0;
+  });
 
-
-// Coordenadas del centro de Madrid
-const centroMadrid = {
-  lat: 40.4168,
-  lon: -3.7038
-};
-// Función para calcular distancia Haversine
-function calcularDistancia(lat1, lon1, lat2, lon2) {
-  const R = 6371; // Radio de la Tierra en km
-  const dLat = (lat2 - lat1) * Math.PI / 180;
-  const dLon = (lon2 - lon1) * Math.PI / 180;
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(lat1 * Math.PI / 180) *
-    Math.cos(lat2 * Math.PI / 180) *
-    Math.sin(dLon / 2) * Math.sin(dLon / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return (R * c).toFixed(2);
+  win.loadFile('index.html');
 }
 
+// Inicia la app
+app.whenReady().then(() => {
+  createWindow();
 
-(async () => {
+  app.on('activate', () => {
+    if (BrowserWindow.getAllWindows().length === 0) createWindow();
+  });
+});
+
+app.on('window-all-closed', () => {
+  if (process.platform !== 'darwin') app.quit();
+});
+
+ipcMain.on('iniciar-scraper', async (event, url) => {
+
+  try {
+    const resultado = await ejecutarScraper(url); // tu función
+    event.reply('scraper-fin', 'Scraping terminado con éxito.');
+  } catch (err) {
+    console.error(err);
+    event.reply('scraper-fin', 'Error durante scraping.');
+  }
+});
+
+const ejecutarScraper = async (url) => {
+
+  const startTime = Date.now();
+  const resultados = [];
+  const nombresRegistrados = new Set();
+  let idCounter = 1;
+  let listaLugares = [];
+  let ultimoIndiceProcesado = 0;
+
+  // Coordenadas del centro de Madrid
+  const centroMadrid = {
+    lat: 40.4168,
+    lon: -3.7038
+  };
+  // Función para calcular distancia Haversine
+  function calcularDistancia(lat1, lon1, lat2, lon2) {
+    const R = 6371; // Radio de la Tierra en km
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(lat1 * Math.PI / 180) *
+      Math.cos(lat2 * Math.PI / 180) *
+      Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return (R * c).toFixed(2);
+  }
+const chromiumPath = path.join(__dirname, 'assets', 'chrome-win64', 'chrome.exe');
+
   const browser = await puppeteer.launch({
+    executablePath: chromiumPath,
     headless: false,
     args: ['--window-size=1440,1080']
-  }); // Usar headless: false para ver qué pasa
-  const page = await browser.newPage();
+  });
+  const [page] = await browser.pages(); // <- usa la ya abierta
 
   await page.setViewport({
     width: 1440,
     height: 1080
   });
-  await page.goto('https://maps.app.goo.gl/WqdHnKgD1t2tAsYd9', {
+
+  await page.goto(url, {
     waitUntil: 'networkidle2'
   });
   try {
@@ -86,7 +133,6 @@ function calcularDistancia(lat1, lon1, lat2, lon2) {
       console.warn('No se pudo hacer zoom:', err.message);
     }
 
-    const candidatos = await page.$$('div.m6QErb.XiKgde');
     while (true) {
       const nuevosCandidatos = await page.$$('div.m6QErb.XiKgde');
       let nuevosEncontrados = 0;
@@ -119,6 +165,8 @@ function calcularDistancia(lat1, lon1, lat2, lon2) {
           nombre
         });
         nuevosEncontrados++;
+
+        await candidato.dispose();
       }
 
       console.log(`Detectados ${nuevosEncontrados} elementos.`);
@@ -141,9 +189,7 @@ function calcularDistancia(lat1, lon1, lat2, lon2) {
               candidato = cand;
               break;
             } else {
-
-              await cand.dispose(); // liberar los que no se usan
-
+              await cand.dispose();
             }
           }
 
@@ -153,20 +199,16 @@ function calcularDistancia(lat1, lon1, lat2, lon2) {
           }
 
           const clickable = await candidato.$('div.fontHeadlineSmall.rZF81c');
-
           if (clickable) {
-            console.log(`Clicando en el elemento correcto para "${nombre}"`);
             await clickable.click();
           } else {
             console.warn(`No se encontró el clicable para "${nombre}"`);
           }
           await new Promise(resolve => setTimeout(resolve, 1500));
 
-
-
           // Extraer coordenadas de la URL
-          const currentUrl = page.url();
-          const coordMatch = currentUrl.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
+          const url = page.url();
+          const coordMatch = url.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
           let lat = null,
             lon = null,
             distanciaKm = null;
@@ -186,12 +228,13 @@ function calcularDistancia(lat1, lon1, lat2, lon2) {
               nombre,
               direccion,
               telefono,
-              web
+              web,
             };
           });
 
           if (!data || !data.nombre) {
-            console.log('Descartado: sin nombre');
+            await clickable?.dispose();
+            await candidato.dispose();
             continue;
           }
 
@@ -199,22 +242,21 @@ function calcularDistancia(lat1, lon1, lat2, lon2) {
             r => r.nombre === data.nombre && r.direccion === data.direccion
           );
           if (yaExiste) {
-            console.log(`Duplicado detectado: ${data.nombre} - ${data.direccion}`);
+            await clickable?.dispose();
+            await candidato.dispose();
             continue;
           }
 
           resultados.push({
             ...data,
-            distanciaKm
+            distanciaKm,
+            url
           });
 
           nombresRegistrados.add(data.nombre);
 
-          console.log({
-            ...data,
-            distanciaKm
-          });
-          await candidato.dispose(); // 🔥 liberar el handle
+          await candidato.dispose(); 
+          await clickable?.dispose();
         } catch (err) {
           console.warn(`Error procesando ${nombre}:`, err.message);
         }
@@ -239,11 +281,20 @@ function calcularDistancia(lat1, lon1, lat2, lon2) {
 
     const csv = parse(resultados);
 
-    const fecha = new Date().toISOString().replace(/[:T]/g, '-').slice(0, 16);
-    fs.writeFileSync(`resultados_${fecha}.csv`, csv);
+    function fecha(fecha = new Date()) {
+      const dia = String(fecha.getDate()).padStart(2, '0');
+      const mes = String(fecha.getMonth() + 1).padStart(2, '0');
+      const año = String(fecha.getFullYear()).slice(-2);
+      const horas = String(fecha.getHours()).padStart(2, '0');
+      const minutos = String(fecha.getMinutes()).padStart(2, '0');
+      return `${dia}-${mes}-${año}_${horas}-${minutos}`; // válido para nombre de archivo
+    }
+    // Guardar CSV en el escritorio con nombre con fecha
+    const nombreArchivo = `resultados_${fecha()}.csv`;
+    const rutaArchivo = path.join(app.getPath('desktop'), nombreArchivo);
 
-    console.log('CSV guardado');
-
+    fs.writeFileSync(rutaArchivo, csv, 'utf-8');
+    console.log(`CSV guardado en: ${rutaArchivo}`);
     await browser.close();
-  }
-})();
+  };
+}

@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+    <link rel="stylesheet" href="./assets/bootstrap.min.css" />
+    <script src="./assets/bootstrap.bundle.min.js" defer></script>
+
+</head>
+    <body class="p-4 bg-dark text-light">
+  <div class="container">
+    <h1 class="mb-4">Scraper Google Maps</h1>
+    <p>Asegurarse de que tenga Chrome instalado.</p>
+    <p>Por favor no cerrar la ventana de chrome. Además si se cuelga la aplicación, darle a intentar de nuevo y el programa automaticamente retomará por donde lo dejó.</p>
+    <p>El excel se almacenará en el escritorio</p>
+    <form id="formulario">
+      <div class="mb-3">
+        <label for="url" class="form-label">URL de lista de Google Maps</label>
+        <input type="text" class="form-control" id="url" placeholder="https://maps.app.goo.gl/xxxxx" required>
+      </div>
+      <button type="submit" class="btn btn-primary">Comenzar</button>
+    </form>
+    <div id="estado" class="mt-4 text-muted small"></div>
+    <p>Hecho por Gabriel Vich</p>
+  </div>
+  <script src="renderer.js"></script>
+</body>
+</html>

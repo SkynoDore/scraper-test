@@ -1,17 +1,33 @@
 {
+  "name": "scraper-test",
+  "version": "1.0.0",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build": "npx electron-packager . scraper-test --platform=win32 --arch=x64 --icon=assets/icon.ico --overwrite"
+  },
   "dependencies": {
-    "fs": "^0.0.1-security",
     "json2csv": "^6.0.0-alpha.2",
     "puppeteer": "^24.10.0"
   },
-  "name": "scraper-test",
-  "version": "1.0.0",
-  "main": "index.js",
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+  "devDependencies": {
+    "electron": "^36.4.0",
+    "electron-packager": "^17.1.2"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "description": ""
+  "build": {
+    "icon": "assets/icon.ico",
+    "files": [
+    "main.min.js",
+    "index.html",
+    "preload.js",
+    "assets/**",
+    "node_modules/**"
+  ],
+    "extraResources": [
+      {
+        "from": "assets/chrome-win64",
+        "to": "chromium"
+      }
+    ]
+  }
 }

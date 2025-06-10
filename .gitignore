@@ -1,3 +1,7 @@
 /node_modules
 /.vscode
+/assets
+/dist
+/scraper-test-win32-x64
 package-lock.json
+scraper-test-win32-x64.rar

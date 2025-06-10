@@ -1,4 +1,5 @@
 const puppeteer = require('puppeteer');
+
 const fs = require('fs');
 const {
   parse
@@ -77,7 +78,14 @@ const ejecutarScraper = async (url) => {
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
     return (R * c).toFixed(2);
   }
-const chromiumPath = path.join(__dirname, 'assets', 'chrome-win64', 'chrome.exe');
+
+
+const isMac = process.platform === 'darwin';
+
+const chromiumPath = isMac
+  ? path.join(__dirname, 'assets', 'chrome-mac', 'Google Chrome for Testing.app')
+  : path.join(__dirname, 'assets', 'chrome-win64', 'chrome.exe');
+
 
   const browser = await puppeteer.launch({
     executablePath: chromiumPath,

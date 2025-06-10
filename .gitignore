@@ -1,6 +1,7 @@
 /node_modules
 /.vscode
-/assets
+/assets/chrome-win64
+/assets/chrome-mac
 /dist
 /scraper-test-win32-x64
 package-lock.json

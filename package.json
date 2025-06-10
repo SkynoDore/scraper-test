@@ -22,7 +22,12 @@
     "preload.js",
     "assets/**",
     "node_modules/**"
+    
   ],
+   "mac": {
+    "target": "dmg",
+    "appId": "com.gvdev.scraper-test"
+  },
     "extraResources": [
       {
         "from": "assets/chrome-win64",
